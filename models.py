@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Integer, Float, DateTime, Enum, ForeignKey, DECIMAL
+from sqlalchemy import Column, String, Text, DateTime, Enum, ForeignKey, DECIMAL
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy_serializer import SerializerMixin
@@ -6,17 +6,7 @@ import uuid
 from config import db
 import enum
 
-
-# Enums
-
-class PlanEnum(enum.Enum):
-    freemium = "freemium"
-    premium = "premium"
-    pro_rated = "pro_rated"
-
-
-
-## Main user models
+# Main user models
 class RoleEnum(enum.Enum):
     admin = "admin"
     job_seeker = "job_seeker"
@@ -180,6 +170,11 @@ class Payment(db.Model, SerializerMixin):
     plan = relationship("Plan", back_populates="payment")
     employer = relationship("Employer", back_populates="payment")
     serialize_rules = ("-plan.payment", "-employer.payment",)
+
+class PlanEnum(enum.Enum):
+    freemium = "freemium"
+    premium = "premium"
+    pro_rated = "pro_rated"
 
 class Plan(db.Model, SerializerMixin):
     __tablename__ = "plans"
