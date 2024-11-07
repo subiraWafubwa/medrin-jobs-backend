@@ -1,45 +1,53 @@
 from sqlalchemy import Column, String, Text, Integer, Float, DateTime, Enum, ForeignKey, DECIMAL
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
+from sqlalchemy_serializer import SerializerMixin
 import uuid
 from config import db
 import enum
 
 
 # Enums
-class PaymentTypeEnum(enum.Enum):
-    mpesa = "mpesa"
-    bank = "bank"
 
 class PlanEnum(enum.Enum):
     freemium = "freemium"
     premium = "premium"
     pro_rated = "pro_rated"
 
-class IndustryEnum(enum.Enum):
-    telcos = "telcos"
-    software = "software"
 
-class JobTypeEnum(enum.Enum):
-    freelance = "freelance"
-    fulltime = "fulltime"
-    parttime = "parttime"
-    internship = "internship"
 
-class JobLevelEnum(enum.Enum):
-    entry_level = "entry_level"
-    mid_level = "mid_level"
-    senior_level = "senior_level"
-
+## Main user models
 class RoleEnum(enum.Enum):
     admin = "admin"
     job_seeker = "job_seeker"
     employer = "employer"
 
-class ApplicationStatusEnum(enum.Enum):
-    pending = "pending"
-    approved = "approved"
-    rejected = "rejected"
+class User(db.Model, SerializerMixin):
+    __tablename__ = "users"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email = Column(String, unique=True)
+    password = Column(String)
+    role = Column(Enum(RoleEnum), nullable=False)
+
+    jobseeker = relationship("JobSeeker", uselist=False, back_populates="user")
+    employer = relationship("Employer", uselist=False, back_populates="user")
+
+# Jobseeker stories: Applying for jobs, Editing data including education and experience
+class JobSeeker(db.Model, SerializerMixin):
+    __tablename__ = "jobseekers"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), unique=True)
+    first_name = Column(String)
+    last_name = Column(String)
+    location = Column(String)
+    phone = Column(String)
+    dob = Column(DateTime)
+
+    user = relationship("User", back_populates="jobseeker")
+    applications = relationship("Application", back_populates="jobseeker")
+    educations = relationship("Education", back_populates="jobseeker", cascade="all, delete-orphan")
+    experiences = relationship("Experience", back_populates="jobseeker", cascade="all, delete-orphan")
+    serialize_rules = ("-user.jobseeker", "-applications.jobseeker","-educations.jobseeker", "-experiences.jobseeker")
 
 class EducationLevelEnum(enum.Enum):
     certificate = "certificate"
@@ -48,57 +56,85 @@ class EducationLevelEnum(enum.Enum):
     masters = "masters"
     phd = "phd"
 
-
-# Models
-class Company(db.Model):
-    __tablename__ = "company"
+class Education(db.Model, SerializerMixin):
+    __tablename__ = "educations"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    jobseeker_id = Column(UUID(as_uuid=True), ForeignKey("jobseekers.id"))
+    start_date = Column(DateTime)
+    end_date = Column(DateTime)
+    institution = Column(String)
+    qualification = Column(String)
+    course = Column(String)
+    level = Column(Enum(EducationLevelEnum))
+
+    jobseeker = relationship("JobSeeker", back_populates="educations")
+    serialize_rules = ("-jobseeker.educations",)
+
+class Experience(db.Model, SerializerMixin):
+    __tablename__ = "experiences"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    jobseeker_id = Column(UUID(as_uuid=True), ForeignKey("jobseekers.id"))
+    start_date = Column(DateTime)
+    end_date = Column(DateTime)
+    description = Column(Text)
+    employer = Column(String)
+    job_title = Column(String)
+
+    jobseeker = relationship("JobSeeker", back_populates="experiences")
+    serialize_rules = ("-jobseeker.experiences",)
+
+class ApplicationStatusEnum(enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+
+class Application(db.Model, SerializerMixin):
+    __tablename__ = "applications"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    jobseeker_id = Column(UUID(as_uuid=True), ForeignKey("jobseekers.id"))
+    job_id = Column(UUID(as_uuid=True), ForeignKey("jobs.id"))
+    created_at = Column(DateTime)
+    status = Column(Enum(ApplicationStatusEnum), default=ApplicationStatusEnum.pending)
+
+    jobseeker = relationship("JobSeeker", back_populates="applications")
+    serialize_rules = ("-jobseeker.applications",)
+
+# Employer stories: CRUD jobs and make payments
+class Employer(db.Model, SerializerMixin):
+    __tablename__ = "employers"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), unique=True)
     name = Column(String)
     location = Column(String)
     description = Column(String)
     mission = Column(String)
     vision = Column(String)
 
-    industries = relationship("IndustryCompany", back_populates="company")
-    payments = relationship("Payment", back_populates="company")
+    user = relationship("User", back_populates="employer")
+    jobs = relationship("Job", back_populates="employer")
+    payment = relationship("Payment", back_populates="employer")
+    serialize_rules = ("-user.employer", "-payment.employer", "-jobs.employer")
 
-    serialize_rules = ("-industries.company", "-payments.company",)
+class JobTypeEnum(enum.Enum):
+    freelance = "freelance"
+    fulltime = "full_time"
+    parttime = "part_time"
+    internship = "internship"
 
-class Plan(db.Model):
-    __tablename__ = "plans"
+class JobLevelEnum(enum.Enum):
+    entry_level = "entry_level"
+    mid_level = "mid_level"
+    senior_level = "senior_level"
+
+class IndustryEnum(enum.Enum):
+    telcos = "telcos"
+    software = "software"
+
+class Job(db.Model, SerializerMixin):
+    __tablename__ = "jobs"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(Enum(PlanEnum))
-    price = Column(DECIMAL)
-
-    payments = relationship("Payment", back_populates="plan")
-
-    serialize_rules = ("-payments.plan",)
-
-class Payment(db.Model):
-    __tablename__ = "payments"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    payment_type = Column(Enum(PaymentTypeEnum))
-    plan_id = Column(UUID(as_uuid=True), ForeignKey("plans.id"))
-    company_id = Column(UUID(as_uuid=True), ForeignKey("company.id"))
-
-    plan = relationship("Plan", back_populates="payments")
-    company = relationship("Company", back_populates="payments")
-
-    serialize_rules = ("-plan.payments", "-company.payments",)
-
-class IndustryCompany(db.Model):
-    __tablename__ = "industry_company"
-    company_id = Column(UUID(as_uuid=True), ForeignKey("company.id"), primary_key=True)
-    industry = Column(UUID(as_uuid=True), ForeignKey("industry.id"), primary_key=True)
-
-class Industry(db.Model):
-    __tablename__ = "industry"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(Enum(IndustryEnum))
-
-class Job(db.Model):
-    __tablename__ = "job"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    employer_id = Column(UUID(as_uuid=True), ForeignKey("employers.id"))
+    industry = Column(Enum(IndustryEnum))
     title = Column(String)
     description = Column(Text)
     created_at = Column(DateTime)
@@ -106,116 +142,50 @@ class Job(db.Model):
     level = Column(Enum(JobLevelEnum))
     job_type = Column(Enum(JobTypeEnum))
     date_posted = Column(DateTime)
-    company_id = Column(UUID(as_uuid=True), ForeignKey("company.id"))
 
-    responsibilities = relationship("JobResponsibility", back_populates="job")
-    requirements = relationship("Requirement", back_populates="job")
+    job_responsibilities = relationship("JobResponsibility", back_populates="job")
+    job_requirements = relationship("Requirement", back_populates="job")
+    employer = relationship("Employer", back_populates="jobs")
+    serialize_rules = ("-job_responsibilities.job", "-job_requirements.job",)
 
-    serialize_rules = ("-responsibilities.job", "-requirements.job",)
-
-class Tag(db.Model):
-    __tablename__ = "tags"
+class JobRequirement(db.Model, SerializerMixin):
+    __tablename__ = "job_requirements"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String)
+    job_id = Column(UUID(as_uuid=True), ForeignKey("jobs.id"))
+    description = Column(Text)
 
-class UserTag(db.Model):
-    __tablename__ = "user_tags"
-    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id"), primary_key=True)
-    tag_id = Column(UUID(as_uuid=True), ForeignKey("tags.id"), primary_key=True)
+    job = relationship("Job", back_populates="requirements")
+    serialize_rules = ("-job.job_requirements",)
 
-
-class JobTag(db.Model):
-    __tablename__ = "job_tags"
-    job_id = Column(UUID(as_uuid=True), ForeignKey("job.id"), primary_key=True)
-    tag_id = Column(UUID(as_uuid=True), ForeignKey("tags.id"), primary_key=True)
-
-
-class JobResponsibility(db.Model):
+class JobResponsibility(db.Model, SerializerMixin):
     __tablename__ = "job_responsibilities"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     description = Column(Text)
-    job_id = Column(UUID(as_uuid=True), ForeignKey("job.id"))
+    job_id = Column(UUID(as_uuid=True), ForeignKey("jobs.id"))
 
     job = relationship("Job", back_populates="responsibilities")
+    serialize_rules = ("-job.job_responsibilities",)
 
-    serialize_rules = ("-job.responsibilities",)
+class PaymentTypeEnum(enum.Enum):
+    mpesa = "mpesa"
+    bank = "bank"
 
-
-class Requirement(db.Model):
-    __tablename__ = "requirements"
+class Payment(db.Model, SerializerMixin):
+    __tablename__ = "payments"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    description = Column(Text)
-    job_id = Column(UUID(as_uuid=True), ForeignKey("job.id"))
+    employer_id = Column(UUID(as_uuid=True), ForeignKey("employers.id"))
+    plan_id = Column(UUID(as_uuid=True), ForeignKey("plans.id"))
+    payment_type = Column(Enum(PaymentTypeEnum))
 
-    job = relationship("Job", back_populates="requirements")
+    plan = relationship("Plan", back_populates="payment")
+    employer = relationship("Employer", back_populates="payment")
+    serialize_rules = ("-plan.payment", "-employer.payment",)
 
-    serialize_rules = ("-job.requirements",)
-
-
-class User(db.Model):
-    __tablename__ = "user"
+class Plan(db.Model, SerializerMixin):
+    __tablename__ = "plans"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email = Column(String, unique=True)
-    password = Column(String)
-    code = Column(String)
+    name = Column(Enum(PlanEnum))
+    price = Column(DECIMAL)
 
-    profile = relationship("Profile", uselist=False, back_populates="user")
-    applications = relationship("Application", back_populates="user")
-
-    serialize_rules = ("-profile.user", "-applications.user",)
-
-
-class Profile(db.Model):
-    __tablename__ = "profile"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    first_name = Column(String)
-    last_name = Column(String)
-    location = Column(String)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id"))
-    phone = Column(String)
-    dob = Column(DateTime)
-
-    user = relationship("User", back_populates="profile")
-
-    serialize_rules = ("-user.profile",)
-
-
-class Role(db.Model):
-    __tablename__ = "roles"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(Enum(RoleEnum))
-
-
-class Application(db.Model):
-    __tablename__ = "applications"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id"))
-    job_id = Column(UUID(as_uuid=True), ForeignKey("job.id"))
-    created_at = Column(DateTime)
-    status = Column(Enum(ApplicationStatusEnum))
-
-    user = relationship("User", back_populates="applications")
-
-    serialize_rules = ("-user.applications",)
-
-
-class Education(db.Model):
-    __tablename__ = "education"
-    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    start_date = Column(DateTime)
-    end_date = Column(DateTime)
-    institution = Column(String)
-    qualification = Column(String)
-    course = Column(String)
-    level = Column(Enum(EducationLevelEnum))
-    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id"))
-
-class Experience(db.Model):
-    __tablename__ = "experience"
-    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    start_date = Column(DateTime)
-    end_date = Column(DateTime)
-    description = Column(Text)
-    company = Column(String)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id"))
-    job_title = Column(String)
+    payment = relationship("Payment", back_populates="plan")
+    serialize_rules = ("-payments.plan",)

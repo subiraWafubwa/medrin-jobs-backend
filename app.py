@@ -1,5 +1,5 @@
 from config import app, db, init_extensions
-from models import Company, Plan, Payment
+import models
 
 # Initialize extensions with the app
 init_extensions(app)
