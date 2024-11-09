@@ -457,6 +457,10 @@ class Applications_by_user_id(Resource):
         return make_response(applications,200)
 api.add_resource(Applications_by_user_id,'/applications/user/<int:id>')
 
+#Handle the shortlisting 
+#The employer should leave comments for the shortlisted employees
+# Add a table for comments which should have a relationship with the shortlisting since the employer can leave multiple comments
+
         
     
     
