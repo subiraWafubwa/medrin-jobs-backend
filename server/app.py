@@ -340,7 +340,7 @@ class Jobs_by_company_id(Resource):
     #this route is used by the employer to see all the jobs that belong to their company
     #NOTE HERE WE ARE USING COMPANY ID
     def get(self,id):
-        jobs=[job.to_dict() for job in Job.query.filter_by(company_id=id)]
+        jobs=[job.to_dict() for job in Job.query.filter_by(company_id=id).all()]
         
         if not jobs:
             return make_response(
@@ -354,7 +354,110 @@ class Jobs_by_company_id(Resource):
 api.add_resource(Jobs_by_company_id,'/jobs/company/<int:id>')        
 
 ############################################################################### APPLICATION RESOURCE #################################################################################################
+class Applications(Resource):
+    #This route is used by the admin to see all the applications in the system
+    #Note we are going to use this route in the admin dashboard for metrics 
+    def get(self):
+        applications=[application.to_dict() for application in Application.query.all()]
+        if not applications:
+            return make_response({
+                "error":"Currently there are no applications"
+            },400)
+        
+        return make_response(applications,200)
     
+    #This route is used by the job_seeker when he/she want to apply for a particular job
+    def post(self):
+        data=request.get_json()
+        user_id=data['user_id']
+        job_id=data['job_id']
+        status='pending'
+        
+        user=User.query.filter_by(id=user_id).first()
+        job=Job.query.filter_id(id=job_id).first()
+        
+        if not user:
+            return make_response(
+                {
+                    "error":"No user with that id is found"
+                },400
+            )
+        
+        if not job:
+            return make_response(
+                {
+                    "error":"No job with that id is found"
+                },400
+            )
+        
+        application=Application(user_id=user_id,job_id=job_id,status=status)
+        db.session.add(application)
+        db.session.commit()
+        
+        return make_response(application.to_dict(),200)
+                
+api.add_resource(Applications,'/applications')
+
+class Applications_by_id(Resource):
+    #This route is used by the employer
+    def get(self,id):
+        application=Application.query.filter_by(id=id).filter()
+        if not application:
+            return make_response({
+                "error":"There is no application with that id"
+            },400)
+            
+        return make_response(application.to_dict(),200)
+    
+    #This route is used by the job_seeker or the employer to delete an application
+    def delete(self,id):
+        application=Application.query.filter_by(id=id).filter()
+        if not application:
+            return make_response({
+                "error":"There is no application with that id"
+            },400)
+        
+        db.session.delete(application)
+        db.session.commit()
+        
+        return make_response(
+            {
+                "message":"application has been successfully deleted"
+            },400
+        )
+    #This route is used by the employer when he/she wants to update the status of the application 
+    def put(self,id):
+        application=Application.query.filter_by(id=id).filter()
+        if not application:
+            return make_response({
+                "error":"There is no application with that id"
+            },400)
+        
+        data=request.get_json()
+        
+        for key,value in data.items():
+            setattr(application,key,value)
+        
+        db.session.commit()
+        
+        return make_response(application.to_dict(),200)
+    
+api.add_resource(Applications_by_id,'/applications/id')
+
+class Applications_by_user_id(Resource):
+    #this route is used by the job_seeker to view all his/her application
+    #Note here we are using user_id ,this route is important in the job_seeker dashboard
+    def get(self,id):
+        applications=[application.to_dict() for application in Application.query.filter_by(user_id=id).all()]
+        if not applications:
+            return make_response({
+                "error":"Currently there are no applications"
+            },400)
+        
+        return make_response(applications,200)
+api.add_resource(Applications_by_user_id,'/applications/user/<int:id>')
+
+        
     
     
 # Running the app
