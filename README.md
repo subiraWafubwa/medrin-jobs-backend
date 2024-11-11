@@ -2,7 +2,14 @@
 
 This repository contains the backend code of Medrin Jobs project using Flask (python).
 
-## User journey and Routes
+## User journey
+
+| User      | Description                                                                                                                                                                                                                                                                                                                                                                                                                             | Models Associated                                                                                                                                                                                                                                           |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Employer  | 1. Create user account and Employer profile data <br> 2. Can view and update his profile data. <br> 3. Post a new job <br> 4. Get list of jobs posted. <br> 4. View applicants for a particular jobs. <br> 5. View applicants profile. <br> 6. Approving and rejecting applications. <br> 7. Sending email notifications to users for application status. <br> 8. Shortlisting applications for each job. <br> 9. Purchasing job slots. | 1. `User`, `Employer` <br> 2. `Employer` <br> 3. `Job`, `JobResponsibility`, `JobRequirements` <br> 4. `Jobs` <br> 5. `Applications` <br> 6. `Applications` <br> 7. `No model associated` <br> 8. `shortlisted_applications` <br> 9. `Payments`, `Employer` |
+| Jobseeker | 1. View all jobs available for application. <br> 2. Apply for a particular job. <br> 3. Create user account and Jobseeker profile data. <br> 4. Update profile data. <br> 5. View job applications. <br> 6. View her applications' status. <br>                                                                                                                                                                                         | 1. `Jobs`, `shortlisted_applications` <br> 2. `Jobs` <br> 3. `Jobseeker`, `User` <br> 4. `Jobseeker` <br> 5. `Applications` <br> 6. `Applications`                                                                                                          |
+
+## Routes
 
 In this sesction, I have added the route data according to the user's journey e.g. the step-by_step processes in which a user creates an account.
 
