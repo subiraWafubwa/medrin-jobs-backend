@@ -6,6 +6,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import MetaData
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager
+from flask_mail import Mail
 
 # Instantiate app, set configurations
 app = Flask(__name__)
@@ -15,6 +16,13 @@ app.json.compact = False
 app.config['SECRET_KEY'] = 'your_secret_key'
 app.config['JWT_SECRET_KEY'] = 'your_secret_key'
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 864000  # 10 days
+
+# Enable blacklisting for the JWTs
+app.config["JWT_BLACKLIST_ENABLED"] = True
+app.config["JWT_BLACKLIST_TOKEN_CHECKS"] = ["access"]
+
+# A set to store blacklisted tokens
+BLACKLIST = set()
 
 # Define metadata for naming conventions
 metadata = MetaData(naming_convention={
@@ -28,6 +36,7 @@ api = Api()
 cors = CORS()
 bcrypt = Bcrypt()
 jwt = JWTManager()
+mail = Mail(app)
 
 # Extension setup function
 def init_extensions(app):
@@ -37,3 +46,17 @@ def init_extensions(app):
     cors.init_app(app)
     bcrypt.init_app(app)
     jwt.init_app(app)
+    mail.init_app(app)
+
+class MailConfig:
+    MAIL_SERVER = 'smtp.gmail.com'
+    MAIL_PORT = 587
+    MAIL_USERNAME = 'wafubwacraig@gmail.com'
+    MAIL_PASSWORD = 'mcudrlgjllqdphbw'
+    MAIL_USE_TLS = True
+    MAIL_USE_SSL = False
+    MAIL_DEFAULT_SENDER = 'wafubwacraig@gmail.com'
+    SECRET_KEY = 'your-secret-key'
+
+app.config.from_object(MailConfig)
+
