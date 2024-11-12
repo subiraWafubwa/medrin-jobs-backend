@@ -50,8 +50,21 @@ class JobLevelEnum(enum.Enum):
     senior_level = "senior_level"
 
 class IndustryEnum(enum.Enum):
-    telcos = "telcos"
-    software = "software"
+    agriculture = "agriculture"
+    banking_finance = "banking_finance"
+    building_construction = "building_construction"
+    business = "business"
+    customer_service = "customer_service"
+    government = "government"
+    healthcare = "healthcare"
+    hospitality = "hospitality"
+    human_resource = "human_resource"
+    it_software = "it_software"
+    legal = "legal"
+    marketing_communication = "marketing_communication"
+    project_management = "project_management"
+    teaching = "teaching"
+
 
 # Association table for short-listed applications
 shortlisted_applications = Table(
