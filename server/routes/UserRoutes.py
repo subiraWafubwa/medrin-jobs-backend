@@ -1,6 +1,5 @@
 from flask import Blueprint, jsonify
 from middlewares.auth import token_required
-from models import User
 
 get_data_bp = Blueprint('getdata', __name__)
 
@@ -12,8 +11,7 @@ def get_user_data(user):
             "user": {
                 "id": user.id,
                 "email": user.email,
-                "role": user.role.name if user.role else None,
-                "employer_id": user.employer.id
+                "role": user.role.name if user.role else None
             }
         }), 200
 

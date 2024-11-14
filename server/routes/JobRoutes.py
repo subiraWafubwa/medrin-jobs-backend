@@ -1,29 +1,27 @@
 from flask import Blueprint, request, jsonify
 from datetime import datetime
-from models import Job, Employer, JobRequirement, JobResponsibility, JobTypeEnum, JobLevelEnum, IndustryEnum, db
+from models import Job, Organisation, JobRequirement, JobResponsibility, JobTypeEnum, JobLevelEnum, IndustryEnum, db, shortlisted_applications
 
 job_bp = Blueprint('job', __name__)
 
-@job_bp.route('/add_job/<uuid:employer_id>', methods=['POST'])
-def add_job(employer_id):
-    # Ensure that the employer exists
-    employer = Employer.query.get(employer_id)
-    if not employer:
-        return jsonify({"error": "Employer not found"}), 404
-    
-    # Get data from POST request
+@job_bp.route('/add_job/<uuid:organisation_id>', methods=['POST'])
+def add_job(organisation_id):
+    organisation = Organisation.query.get(organisation_id)
+    if not organisation:
+        return jsonify({"error": "Organisation not found"}), 404
+
     data = request.get_json()
     title = data.get('title')
     description = data.get('description')
     industry = data.get('industry')
     level = data.get('level')
     job_type = data.get('job_type')
+    requirements_list = data.get('job_requirements', [])
+    responsibilities_list = data.get('job_responsibilities', [])
 
-    # Validate required fields
     if not title or not description or not industry or not level or not job_type:
         return jsonify({"error": "All fields are required: title, description, industry, level, job_type"}), 400
 
-    # Ensure valid enum values
     if industry not in IndustryEnum._member_names_:
         return jsonify({"error": "Invalid industry value"}), 400
     if level not in JobLevelEnum._member_names_:
@@ -31,9 +29,8 @@ def add_job(employer_id):
     if job_type not in JobTypeEnum._member_names_:
         return jsonify({"error": "Invalid job type value"}), 400
 
-    # Create the new Job object
     job = Job(
-        employer_id=employer_id,
+        organisation_id=organisation_id,
         industry=IndustryEnum[industry].value,
         title=title,
         description=description,
@@ -44,21 +41,29 @@ def add_job(employer_id):
         date_posted=datetime.now()
     )
 
-    print(industry)
-
-    # Save job to the database
     db.session.add(job)
     db.session.commit()
 
-    # Serialize the job details, converting enum values to strings using the `.value` attribute
+    for requirement in requirements_list:
+        job_requirement = JobRequirement(job_id=job.id, requirements=requirement)
+        db.session.add(job_requirement)
+
+    for responsibility in responsibilities_list:
+        job_responsibility = JobResponsibility(job_id=job.id, description=responsibility)
+        db.session.add(job_responsibility)
+
+    db.session.commit()
+
     job_data = {
         "id": str(job.id),
-        "employer_id": str(job.employer_id),
+        "organisation_id": str(job.organisation_id),
         "title": job.title,
         "description": job.description,
         "level": job.level.value,
         "job_type": job.job_type.value,
-        "date_posted": job.date_posted.isoformat()
+        "date_posted": job.date_posted.isoformat(),
+        "job_requirements": [req.requirements for req in job.job_requirements],
+        "job_responsibilities": [resp.description for resp in job.job_responsibilities]
     }
 
     return jsonify({
@@ -66,84 +71,35 @@ def add_job(employer_id):
         "job": job_data
     }), 201
 
-@job_bp.route('/add_job_requirements/<uuid:job_id>', methods=['POST'])
-def add_job_requirements(job_id):
-    # Ensure that the job exists
-    job = Job.query.get(job_id)
-    if not job:
-        return jsonify({"error": "Job not found"}), 404
-    
-    # Get data from POST request
-    data = request.get_json()
-    requirements = data.get('requirements')
+@job_bp.route('/all_jobs', methods=['GET'])
+def get_all_jobs():
+    jobs = Job.query.all()
 
-    # Validate required fields
-    if not requirements:
-        return jsonify({"error": "Requirements are required"}), 400
-    
-    # Delete existing job requirements for this job
-    JobRequirement.query.filter_by(job_id=job_id).delete()
-
-    # Create the new JobRequirement object
-    job_requirement = JobRequirement(
-        job_id=job_id,
-        requirements=requirements
-    )
-
-    # Save job requirement to the database
-    db.session.add(job_requirement)
-    db.session.commit()
-
-    # Serialize the job requirement details
-    job_requirement_data = {
-        "id": str(job_requirement.id),
-        "job_id": str(job_requirement.job_id),
-        "requirements": job_requirement.requirements
-    }
+    job_list = [job.to_dict() for job in jobs]
 
     return jsonify({
-        "message": "Job requirement added successfully!",
-        "job_requirement": job_requirement_data
-    }), 201
+        "jobs": job_list
+    }), 200
 
-@job_bp.route('/add_job_responsibility/<uuid:job_id>', methods=['POST'])
-def add_job_responsibility(job_id):
-    # Ensure that the job exists
-    job = Job.query.get(job_id)
-    if not job:
-        return jsonify({"error": "Job not found"}), 404
-    
-    # Get data from POST request
-    data = request.get_json()
-    description = data.get('description')
+@job_bp.route('/applicable_jobs', methods=['GET'])
+def get_applicable_jobs():
+    shortlisted_job_ids = db.session.query(shortlisted_applications.c.job_id).distinct()
+    jobs = Job.query.filter(~Job.id.in_(shortlisted_job_ids)).all()
 
-    # Validate required fields
-    if not description:
-        return jsonify({"error": "Description is required"}), 400
-    
-    # Delete existing job responsibilities for this job
-    JobResponsibility.query.filter_by(job_id=job_id).delete()
-
-    # Create the new JobResponsibility object
-    job_responsibility = JobResponsibility(
-        job_id=job_id,
-        description=description
-    )
-
-    # Save job responsibility to the database
-    db.session.add(job_responsibility)
-    db.session.commit()
-
-    # Serialize the job responsibility details
-    job_responsibility_data = {
-        "id": str(job_responsibility.id),
-        "job_id": str(job_responsibility.job_id),
-        "description": job_responsibility.description
-    }
+    job_list = [job.to_dict() for job in jobs]
 
     return jsonify({
-        "message": "Job responsibility added successfully!",
-        "job_responsibility": job_responsibility_data
-    }), 201
+        "applicable_jobs": job_list
+    }), 200
 
+@job_bp.route('/job/<int:job_id>', methods=['GET'])
+def get_job_by_id(job_id):
 
+    job = Job.query.get(job_id)
+    
+    if job is None:
+        return jsonify({"error": "Job not found"}), 404
+
+    return jsonify({"job": job.to_dict()}), 200
+
+# Error handling
