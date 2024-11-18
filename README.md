@@ -43,3 +43,24 @@ In this sesction, I have added the route data according to the user's journey e.
 | Route          | CRUD Operation | Description                                       | Models Involved | Data Manipulated                                                                                                                                      |
 | -------------- | -------------- | ------------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/get_profile` | GET            | Fetches user profile data for authenticated users | `User`          | **Input:** None (requires authentication via token). <br> **Output:** Returns a JSON object with the user's `id`, `email`, `role`, and `employer_id`. |
+
+## Payment Plans
+
+### Organisation Model
+
+- `job_post_slots` tracks the number of posts allowed.
+
+- `plan_expiry` tracks expiration dates for premium plans.
+
+- The `update_plan` method manages plan changes, updates expiry for premium, and sets custom slots for pro-rated. It has been set to handle monthly and yearly premium plans. Pro-rated plans handles
+
+### Plan Model
+
+- Contains job_post_limit to define limits for pro-rated plans or premium if they have caps.
+- Defines duration to represent if it’s monthly, yearly, or per-job.
+
+### Payment Model
+
+- Tracks the type and amount of payment.
+
+- Links each payment to a plan and organization.

@@ -6,7 +6,11 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import MetaData
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager
-from flask_mail import Mail
+from flask_mail import Mail, Message
+
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
 
 # Instantiate app, set configurations
 app = Flask(__name__)
@@ -21,6 +25,9 @@ app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 864000  # 10 days
 app.config["JWT_BLACKLIST_ENABLED"] = True
 app.config["JWT_BLACKLIST_TOKEN_CHECKS"] = ["access"]
 
+# File upload configuration
+app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'pdf', 'docx'}
+
 # A set to store blacklisted tokens
 BLACKLIST = set()
 
@@ -28,6 +35,18 @@ BLACKLIST = set()
 metadata = MetaData(naming_convention={
     "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
 })
+
+# Email configurations
+class MailConfig:
+    MAIL_SERVER = 'smtp.gmail.com'
+    MAIL_PORT = 587
+    MAIL_USERNAME = 'wafubwacraig@gmail.com'
+    MAIL_PASSWORD = 'mcudrlgjllqdphbw'
+    MAIL_USE_TLS = True
+    MAIL_USE_SSL = False
+    SECRET_KEY = 'your-secret-key'
+
+app.config.from_object(MailConfig)
 
 # Initialize extensions
 db = SQLAlchemy(metadata=metadata)
@@ -38,6 +57,16 @@ bcrypt = Bcrypt()
 jwt = JWTManager()
 mail = Mail(app)
 
+# Function to send emails
+def send_email(subject, email, body):
+    msg = Message(
+        subject=subject,
+        recipients=[email],
+        sender=('Medrin Jobs', 'wafubwacraig@gmail.com')  # Proper sender format
+    )
+    msg.body = body
+    mail.send(msg)
+
 # Extension setup function
 def init_extensions(app):
     db.init_app(app)
@@ -46,17 +75,10 @@ def init_extensions(app):
     cors.init_app(app)
     bcrypt.init_app(app)
     jwt.init_app(app)
-    mail.init_app(app)
 
-class MailConfig:
-    MAIL_SERVER = 'smtp.gmail.com'
-    MAIL_PORT = 587
-    MAIL_USERNAME = 'wafubwacraig@gmail.com'
-    MAIL_PASSWORD = 'mcudrlgjllqdphbw'
-    MAIL_USE_TLS = True
-    MAIL_USE_SSL = False
-    MAIL_DEFAULT_SENDER = 'wafubwacraig@gmail.com'
-    SECRET_KEY = 'your-secret-key'
-
-app.config.from_object(MailConfig)
-
+# Clouinary configuration
+cloudinary.config(
+    cloud_name='djmyqvyys',
+    api_key='595518991534862',
+    api_secret='DxFdZLzYt95SFntqA9yTLX7TVUk'
+)

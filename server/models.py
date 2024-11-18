@@ -76,7 +76,6 @@ class User(db.Model, SerializerMixin):
     email = Column(String, unique=True)
     password = Column(String)
     role = Column(Enum(RoleEnum), nullable=False)
-    otp = Column(Integer)
     timestamp = Column(DateTime, default=datetime.now)
 
     jobseeker = relationship("JobSeeker", uselist=False, back_populates="user")
@@ -123,6 +122,7 @@ class Organisation(db.Model, SerializerMixin):
     description = Column(String)
     mission = Column(String)
     vision = Column(String)
+    
     plan = Column(Enum(PlanEnum), default=PlanEnum.free)
     job_post_slots = Column(Integer, default=3)  # Free plan gets 3 initial slots
     plan_expiry = Column(DateTime, nullable=True)  # Tracks expiration for premium plans
@@ -191,7 +191,7 @@ class Job(db.Model, SerializerMixin):
         secondary=shortlisted_applications,
         back_populates="shortlisted_jobs",
         primaryjoin=id == shortlisted_applications.c.job_id,
-        secondaryjoin="Application.id == shortlisted_applications.c.application_id"  # Updated join condition
+        secondaryjoin="Application.id == shortlisted_applications.c.application_id"
     )
     serialize_rules = ("-job_responsibilities.job", "-job_requirements.job", "-job_benefits.job")
 
@@ -232,6 +232,7 @@ class JobSeeker(db.Model, SerializerMixin):
     location = Column(String)
     phone = Column(String)
     dob = Column(Date)
+    cv = Column(Text, nullable=True)
 
     user = relationship("User", back_populates="jobseeker")
     applications = relationship("Application", back_populates="jobseeker")

@@ -1,65 +1,80 @@
-from flask import Blueprint, request, jsonify, session
-from flask_mail import Message
-from datetime import datetime
-from flask_jwt_extended import create_access_token, get_jwt, jwt_required
+import re
 import pyotp
-from config import BLACKLIST, db, mail, bcrypt
-from models import Organisation, User, RoleEnum, JobSeeker
-from datetime import datetime
-from flask import jsonify, request, session
-from flask_bcrypt import Bcrypt
-from flask_jwt_extended import create_access_token
-from datetime import timedelta
-from uuid import UUID
+import bcrypt
 
-bcrypt = Bcrypt()
+from flask import Blueprint, request, jsonify, session
+from flask_jwt_extended import create_access_token, get_jwt, jwt_required
+from config import BLACKLIST, db,  send_email
+from models import User, RoleEnum
+from datetime import datetime, timedelta
+
 auth_bp = Blueprint('signup', __name__)
+
+unverified_users = {}
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
+
+    email_validate_pattern = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+    
     email = data.get('email')
     password = data.get('password')
     role = data.get('role')
 
-    if not email or not password or not role:
-        return jsonify({"error": "Email, password, and role are required"}), 400
+    # Validate email
+    if not email:
+        return jsonify({"error": "Please add an email"}), 400
+    
+    if not re.match(email_validate_pattern, email):
+        return jsonify({"error": "Invalid email format"}), 400
+    
+    # Validate password
+    if not password:
+        return jsonify({"error": "Please provide a password"}), 400
+    
+    if len(password) < 8:
+        return jsonify({"error": "Password should be at least 8 characters"}), 400
+
+    # Validate role
+    if not role:
+        return jsonify({"error": "Please select a role"}), 400
 
     if role not in RoleEnum._member_names_:
         return jsonify({"error": "Invalid role"}), 400
 
+    # Check for existing user
     existing_user = User.query.filter_by(email=email).first()
     if existing_user:
         return jsonify({"error": "A user with this email already exists"}), 400
 
-    hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+    # Hash password
+    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
 
-    # Generate and store OTP
+    # Generate OTP
     totp = pyotp.TOTP(pyotp.random_base32(), digits=6)
     otp = totp.now()
 
-    new_user = User(
-        email=email,
-        password=hashed_password,
-        role=role,
-        otp=otp,
-        timestamp=datetime.now()  
-    )
-
-    db.session.add(new_user)
-    db.session.commit()
+    # Save user data temporarily
+    unverified_users[email] = {
+        "email": email,
+        "password": hashed_password,
+        "role": role,
+        "otp": otp
+    }
 
     # Send OTP email
-    msg = Message("Your OTP Code", recipients=[email])
-    msg.body = f"Your OTP code is {otp}. It will expire in 5 minutes."
-    mail.send(msg)
-
-    print("OTP sent:", otp)
+    send_email(
+        subject="Your OTP code", 
+        email=email,
+        body=f"Your OTP code is {otp}. It will expire in 5 minutes."
+    )
 
     return jsonify({
         "message": "User registered successfully. OTP sent to email.",
         "otp": otp
     }), 200
+
 
 @auth_bp.route('/verify_otp', methods=['POST'])
 def verify_otp():
@@ -67,35 +82,40 @@ def verify_otp():
     email = data.get('email')
     otp_input = str(data.get('otp'))
 
-    user = User.query.filter_by(email=email).first()
+    if email not in unverified_users:
+        return jsonify({"error": "This user has not registered"}), 400
 
-    if not user:
-        return jsonify({"error": "User not found"}), 400
-
-    otp = str(user.otp)
-    timestamp = user.timestamp
+    user_data = unverified_users[email]
+    otp = str(user_data['otp'])
+    timestamp = datetime.now()
 
     # Check if OTP has expired (5 minutes)
     if datetime.now() - timestamp > timedelta(minutes=5):
+        del unverified_users[email] 
         return jsonify({"error": "OTP has expired"}), 400
 
     if otp_input == otp:
-        hashed_password = bcrypt.generate_password_hash(user.password).decode('utf-8')  # Hash the password
-        user.password = hashed_password
-        user.otp = None
-        user.timestamp = None
-
+        new_user = User(
+            email=user_data['email'],
+            password=user_data['password'],
+            role=user_data['role'],
+            timestamp=datetime.now()
+        )
+        db.session.add(new_user)
         db.session.commit()
 
-        # Generate a JWT token for the user to log them in
-        access_token = create_access_token(identity=user.id)
+        # Generate a JWT token
+        access_token = create_access_token(identity=new_user.id)
+
+        # Remove user from the unverified list
+        del unverified_users[email]
 
         return jsonify({
-            "message": "OTP verified successfully. User logged in!",
+            "message": "OTP verified successfully. User registered!",
             "user": {
-                "id": str(user.id),
-                "email": user.email,
-                "role": user.role.name,
+                "id": str(new_user.id),
+                "email": new_user.email,
+                "role": new_user.role.name,
                 "token": access_token
             }
         }), 200
@@ -105,7 +125,6 @@ def verify_otp():
 @auth_bp.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
-
     email = data.get('email')
     password = data.get('password')
 
@@ -117,9 +136,12 @@ def login():
     if not user:
         return jsonify({"error": "Invalid email"}), 401
 
-    if not bcrypt.check_password_hash(user.password, password):
+    # Verify the password using bcrypt
+    if not bcrypt.checkpw(password.encode('utf-8'), user.password):
+        print("Password verification failed.")
         return jsonify({"error": "Incorrect password"}), 401
 
+    # Generate access token for the user
     access_token = create_access_token(identity=email)
 
     return jsonify({
@@ -131,113 +153,6 @@ def login():
             "token": access_token
         }
     }), 200
-
-@auth_bp.route('/create_jobseeker', methods=['POST'])
-def create_jobseeker():
-    user_id = session.get('user_id')
-
-    if not user_id:
-        return jsonify({"error": "User must be registered and logged in to create a JobSeeker profile"}), 400
-
-    data = request.get_json()
-
-    first_name = data.get('first_name')
-    last_name = data.get('last_name')
-    location = data.get('location')
-    phone = data.get('phone')
-    dob_str = data.get('dob')
-
-    if not first_name or not last_name or not location or not phone or not dob_str:
-        return jsonify({"error": "First name, last name, location, phone, and date of birth are required"}), 400
-
-    try:
-        dob = datetime.strptime(dob_str, '%d/%m/%Y')
-    except ValueError:
-        return jsonify({"error": "Invalid date format. Please use 'DD/MM/YYYY'"}), 400
-
-    jobseeker = JobSeeker(
-        user_id=user_id,
-        first_name=first_name,
-        last_name=last_name,
-        location=location,
-        phone=phone,
-        dob=dob
-    )
-
-    # Save the jobseeker profile to the database
-    db.session.add(jobseeker)
-    db.session.commit()
-
-    # Clear session data
-    session.clear()
-
-    return jsonify({
-        "message": "JobSeeker profile created successfully!",
-        "jobseeker": {
-            "id": str(jobseeker.id),
-            "user_id": str(jobseeker.user_id),
-            "first_name": jobseeker.first_name,
-            "last_name": jobseeker.last_name,
-            "location": jobseeker.location,
-            "phone": jobseeker.phone,
-            "dob": jobseeker.dob.isoformat()
-        }
-    }), 201
-
-@auth_bp.route('/create_organisation', methods=['POST'])
-def create_organisation():
-    data = request.get_json()
-
-    user_id = data.get('user_id')
-    name = data.get('name')
-    location = data.get('location')
-    description = data.get('description')
-    mission = data.get('mission')
-    vision = data.get('vision')
-
-    if not user_id or not name or not location or not description or not mission or not vision:
-        return jsonify({"error": "user_id, name, location, description, mission, and vision are required"}), 400
-
-    try:
-        user_id = UUID(user_id)
-    except ValueError:
-        return jsonify({"error": "Invalid user_id format"}), 400
-
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    # Create the Organisation object
-    organisation = Organisation(
-        user_id=user_id,
-        name=name,
-        location=location,
-        description=description,
-        mission=mission,
-        vision=vision
-    )
-
-    # Save the organisation to the database
-    try:
-        db.session.add(organisation)
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error saving organisation: {e}")
-        return jsonify({"error": "Failed to create organisation profile"}), 500
-
-    return jsonify({
-        "message": "Organisation profile created successfully!",
-        "organisation": {
-            "id": str(organisation.id),
-            "user_id": str(organisation.user_id),
-            "name": organisation.name,
-            "location": organisation.location,
-            "description": organisation.description,
-            "mission": organisation.mission,
-            "vision": organisation.vision
-        }
-    }), 201
 
 @auth_bp.route('/logout', methods=['POST'])
 @jwt_required()

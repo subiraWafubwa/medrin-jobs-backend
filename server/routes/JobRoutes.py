@@ -36,9 +36,7 @@ def add_job(organisation_id):
         description=description,
         level=JobLevelEnum[level].value,
         job_type=JobTypeEnum[job_type].value,
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
-        date_posted=datetime.now()
+        timestamp=datetime.now()
     )
 
     db.session.add(job)
@@ -61,7 +59,7 @@ def add_job(organisation_id):
         "description": job.description,
         "level": job.level.value,
         "job_type": job.job_type.value,
-        "date_posted": job.date_posted.isoformat(),
+        "timestamp": job.timestamp.isoformat(),
         "job_requirements": [req.requirements for req in job.job_requirements],
         "job_responsibilities": [resp.description for resp in job.job_responsibilities]
     }
