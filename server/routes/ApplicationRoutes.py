@@ -151,6 +151,10 @@ def reject_applicant(application_id):
         application = Application.query.filter_by(id=application_id).first()
         if not application:
             return jsonify({"error": "No application found for the specified JobSeeker"}), 404
+        
+        job = Job.query.filter_by(id=application.job_id).first()
+        if not job:
+            return jsonify({"error": "Job associated with this application not found"}), 404
 
         application.status = ApplicationStatusEnum.rejected
         db.session.commit()
@@ -165,7 +169,7 @@ def reject_applicant(application_id):
             subject="Application Rejected",
             email=email,
             body=f"Dear {jobseeker.first_name} {jobseeker.last_name},\n\n"
-                f"Your application for {jobseeker.job.title} has been reviewed, and unfortunately, "
+                f"Your application for the position of {job.title} has been reviewed, and unfortunately, "
                 f"we have decided to move forward with other candidates.\n\n"
                 f"Thank you for your interest and wishing you all the best.\n\n"
                 f"Regards,\nYour Team"
