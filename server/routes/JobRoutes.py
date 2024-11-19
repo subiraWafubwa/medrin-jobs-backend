@@ -95,3 +95,27 @@ def get_job_by_id(job_id):
 
     return jsonify({"job": job.to_dict()}), 200
 
+
+@job_bp.route('/jobs', methods=['GET'])
+def get_jobs():
+
+    jobs=[job.to_dict() for job in Job.query.all()] 
+    
+    if jobs is None:
+        return jsonify({"error": "Jobs are not found"}), 404
+
+    return jsonify(jobs), 200
+
+@job_bp.route('/job/<int:job_id>', methods=['DELETE'])
+def delete_job_by_id(job_id):
+
+    job = Job.query.get(job_id)
+    
+    if job is None:
+        return jsonify({"error": "Job not found"}), 404
+
+    db.session.delete(job)
+    db.session.commit()
+    
+    return jsonify({"message":"Job has been deleted successfully"}), 200
+

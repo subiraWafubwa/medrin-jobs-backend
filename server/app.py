@@ -7,6 +7,9 @@ from routes.ApplicationRoutes import application_bp
 from routes.OrganisationRoutes import organisation_bp
 from routes.JobseekerRoutes import jobseeker_bp
 from routes.mpesa import mpesa_bp
+from routes.plansRoute import plans_bp
+from routes.paymentsRoute import payments_bp
+from routes.subscriptionRoutes import subscription_bp
 
 # Initialize extensions with the app
 init_extensions(app)
@@ -18,6 +21,12 @@ app.register_blueprint(application_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(jobseeker_bp)
 app.register_blueprint(mpesa_bp)
+app.register_blueprint(plans_bp)
+app.register_blueprint(payments_bp)
+app.register_blueprint(subscription_bp)
+
+
+
 
 
 # API endpoint
