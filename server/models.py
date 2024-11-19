@@ -1,8 +1,10 @@
 from datetime import datetime, timedelta
 from sqlalchemy import Column, Date, String, Table, Text, DateTime, Enum, ForeignKey, DECIMAL, Integer
+from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy_serializer import SerializerMixin
+from datetime import datetime,timezone,timedelta
 import uuid
 from config import db
 import enum
@@ -13,14 +15,10 @@ class RoleEnum(enum.Enum):
     organisation = "organisation"
     recruiter = "recruiter"
 
-class PlanEnum(enum.Enum):
-    free = "free"
-    premium = "premium"
-    pro_rated = "pro_rated"
 
-class PaymentTypeEnum(enum.Enum):
-    mpesa = "mpesa"
-    bank = "bank"
+# class PaymentTypeEnum(enum.Enum):
+#     mpesa = "mpesa"
+#     bank = "bank"
 
 class JobTypeEnum(enum.Enum):
     freelance = "freelance"
@@ -123,49 +121,84 @@ class Organisation(db.Model, SerializerMixin):
     mission = Column(String)
     vision = Column(String)
     
-    plan = Column(Enum(PlanEnum), default=PlanEnum.free)
-    job_post_slots = Column(Integer, default=3)  # Free plan gets 3 initial slots
-    plan_expiry = Column(DateTime, nullable=True)  # Tracks expiration for premium plans
     
+    subscriptions=relationship('Organisation',back_populates='organization')
+    plans=association_proxy('subscriptions','Plans',creator=lambda plan_obj:Subscription(plan=plan_obj))
     user = relationship("User", back_populates="organisation")
     recruiters = relationship("Recruiter", back_populates="organisation")
     jobs = relationship("Job", back_populates="organisation")
     payments = relationship("Payment", back_populates="organisation")
-    
-    serialize_rules = ("-user.organisation", "-payments.organisation", "-jobs.organisation",)
+    serialize_rules = ("-user.organisation", "-payments.organisation", "-jobs.organisation","-plans.organisation")
 
-    def update_plan(self, new_plan, duration=None, slots=None):
-        self.plan = new_plan
-        if new_plan == PlanEnum.premium and duration:
-            self.plan_expiry = datetime.now() + timedelta(days=30 if duration == 'monthly' else 365)
-            self.job_post_slots = None
-        elif new_plan == PlanEnum.pro_rated:
-            self.job_post_slots = slots or 10
-            self.plan_expiry = None
-
-class Plan(db.Model, SerializerMixin):
-    __tablename__ = "plans"
-    
+class Plans(db.Model,SerializerMixin):
+    __tablename__='plans'
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(Enum(PlanEnum), nullable=False)
-    description = Column(String)
-    job_post_limit = Column(Integer, nullable=True)  # e.g., "per_job" for pro-rated
-    duration = Column(String)  # E.g., "monthly" or "yearly" 
+    name=Column(db.String,nullable=False) # (free ,silver ,gold ,or any other name based on the preference of the admin)
+    cost=Column(db.Float,nullable=False,default=0.0)
+    description=Column(db.String,nullable=False)
+    job_limit=Column(db.Integer,nullable=True) #Null for unlimited days 
+    duration_days=Column(db.Integer,nullable=True)
     
-    payments = relationship("Payment", back_populates="plan")
+    subscriptions=relationship('Subscription',back_populates='plan',cascade='all, delete-orphan')
+    payments=db.relationship('Payment',back_populates='plan')
+    organisation=association_proxy('subscriptions','Organisation',creator=lambda org_obj:Subscription(organization=org_obj))
     
-    serialize_rules = ("-payments.plan",)
+    serialize_rules=('-subscriptions','-organisation.plans')
+
+class Subscription(db.Model,SerializerMixin):
+    __tablename__='company_subscription'
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id=Column(UUID(as_uuid=True),ForeignKey('users.id'),nullable=False)
+    plan_id=Column(UUID(as_uuid=True),ForeignKey('plans.id'),nullable=False)
+    
+    start_date=db.Column(db.DateTime,default=lambda:datetime.now(timezone(timedelta(hours=3))))
+    end_date=db.Column(db.DateTime ,nullable=True)
+    
+    organization=db.relationship('Organisation',back_populates='subscriptions')
+    plan=db.relationship('Plans',back_populates='subscriptions')
+    
+    serialize_rules=('-organization','-plan')
+    
+    
+    def __init__(self,organization_id,plan_Id):
+        self.organization_id=organization_id
+        self.plan_id=plan_Id
+        self.start_date=datetime.now(timezone(timedelta(hours=3)))
+        
+        
+        plan=Plans.query.get(plan_Id)
+        
+        if plan.duration_days>0:
+            self.end_date=self.start_date + timedelta(days=plan.duration_days)
+        
+    def is_active(self):
+        if self.end_date:
+            return datetime.now(timezone(timedelta(hours=3))) <= self.end_date
+        return True
+    
+    def remaining_jobs(self):
+        if self.plan.job_limit is not None:
+            return self.plan.job_limit-len(self.user.jobs)
+        
+    @classmethod
+    def expired_subscriptions(cls):
+        return cls.query.filter(cls.end_date < datetime.now(timezone(timedelta(hours=3)))).all()
 
 class Payment(db.Model, SerializerMixin):
     __tablename__ = "payments"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    amount=Column(db.Float,nullable=False)
+    phone_number=Column(String,nullable=False)
+    
+    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone(timedelta(hours=3))))
+    transaction_reference = db.Column(db.String, nullable=False, unique=True)
+    payment_status = db.Column(db.String, nullable=False, default="pending")  # (pending, success, failed)
+    
     organisation_id = Column(UUID(as_uuid=True), ForeignKey("organisations.id"))
     plan_id = Column(UUID(as_uuid=True), ForeignKey("plans.id"))
-    payment_type = Column(Enum(PaymentTypeEnum), nullable=False)
-    amount = Column(Integer)  # Amount paid
     
-    plan = relationship("Plan", back_populates="payments")
+    plan = relationship("Plans", back_populates="payments")
     organisation = relationship("Organisation", back_populates="payments")
     
     serialize_rules = ("-plan.payments", "-organisation.payments",)

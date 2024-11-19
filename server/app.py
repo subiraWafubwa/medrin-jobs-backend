@@ -6,6 +6,7 @@ from routes.AdminRoutes import admin_bp
 from routes.ApplicationRoutes import application_bp
 from routes.OrganisationRoutes import organisation_bp
 from routes.JobseekerRoutes import jobseeker_bp
+from routes.mpesa import mpesa_bp
 
 # Initialize extensions with the app
 init_extensions(app)
@@ -16,6 +17,8 @@ app.register_blueprint(organisation_bp)
 app.register_blueprint(application_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(jobseeker_bp)
+app.register_blueprint(mpesa_bp)
+
 
 # API endpoint
 @app.route('/')
