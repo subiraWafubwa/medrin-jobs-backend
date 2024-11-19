@@ -146,7 +146,7 @@ class Payment_result(Resource):
             db.session.commit()
             
             #creating a new subscription
-            new_subscription = Subscription(organization_id=payment.organization_id, plan_Id=payment.plan_id)
+            new_subscription = Subscription(organization_id=payment.organization_id, plan_id=payment.plan_id)
             db.session.add(new_subscription)
             db.session.commit()
             

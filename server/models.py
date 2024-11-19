@@ -160,15 +160,18 @@ class Subscription(db.Model,SerializerMixin):
     serialize_rules=('-organization','-plan')
     
     
-    def __init__(self,organization_id,plan_Id):
+    def __init__(self,organization_id,plan_id):
         self.organization_id=organization_id
-        self.plan_id=plan_Id
+        self.plan_id=plan_id
         self.start_date=datetime.now(timezone(timedelta(hours=3)))
         
         
-        plan=Plans.query.get(plan_Id)
+        plan=Plans.query.get(plan_id)
         
-        if plan.duration_days>0:
+        if not plan:
+            raise ValueError(f"Plan with ID {plan_id} not found")
+        
+        if plan.duration_days and plan.duration_days>0:
             self.end_date=self.start_date + timedelta(days=plan.duration_days)
         
     def is_active(self):
