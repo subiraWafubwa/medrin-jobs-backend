@@ -2,7 +2,7 @@ from uuid import UUID
 import cloudinary
 from flask import Blueprint, jsonify, request
 from config import db
-from models import Organisation, User
+from models import Job, Organisation, User
 
 organisation_bp = Blueprint('organisation', __name__)
 
@@ -59,7 +59,8 @@ def create_organisation():
         }
     }), 201
 
-# 
+
+
 @organisation_bp.route('/update_organisation', methods=['PATCH'])
 def update_organisation():
     data = request.form
@@ -135,3 +136,21 @@ def upload_logo(logo):
     except Exception as e:
         print(f"Error uploading logo: {e}")
         raise Exception("Logo upload failed")
+
+@organisation_bp.route('/get_jobs/<organisation_id>', methods=['GET'])
+def get_jobs_for_organisation(organisation_id):
+    try:
+        try:
+            organisation_id = UUID(organisation_id)
+        except ValueError:
+            return jsonify({"error": "Invalid organisation ID format"}), 400
+
+        jobs = Job.query.filter_by(organisation_id=organisation_id).all()
+
+        if not jobs:
+            return jsonify({"message": "No jobs found for this organisation."}), 404
+
+        return jsonify([job.to_dict() for job in jobs]), 200
+
+    except Exception as e:
+        return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500

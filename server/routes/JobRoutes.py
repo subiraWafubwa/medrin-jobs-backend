@@ -1,11 +1,11 @@
 from flask import Blueprint, request, jsonify
 from datetime import datetime
-from models import Job, Organisation, JobRequirement, JobResponsibility, JobTypeEnum, JobLevelEnum, IndustryEnum, db, shortlisted_applications
+from models import Job, Organisation, JobRequirement, JobResponsibility, JobTypeEnum, JobLevelEnum, IndustryEnum, JobBenefits, db, shortlisted_applications
 
 job_bp = Blueprint('job', __name__)
 
-@job_bp.route('/add_job/<uuid:organisation_id>', methods=['POST'])
-def add_job(organisation_id):
+@job_bp.route('/create_job/<uuid:organisation_id>', methods=['POST'])
+def create_job(organisation_id):
     organisation = Organisation.query.get(organisation_id)
     if not organisation:
         return jsonify({"error": "Organisation not found"}), 404
@@ -16,6 +16,7 @@ def add_job(organisation_id):
     industry = data.get('industry')
     level = data.get('level')
     job_type = data.get('job_type')
+    benefits_list = data.get('job_benefits')
     requirements_list = data.get('job_requirements', [])
     responsibilities_list = data.get('job_responsibilities', [])
 
@@ -50,6 +51,10 @@ def add_job(organisation_id):
         job_responsibility = JobResponsibility(job_id=job.id, description=responsibility)
         db.session.add(job_responsibility)
 
+    for benefit in benefits_list:
+        job_benefit = JobBenefits(job_id=job.id, description=benefit)
+        db.session.add(job_benefit)
+
     db.session.commit()
 
     job_data = {
@@ -68,16 +73,6 @@ def add_job(organisation_id):
         "message": "Job posted successfully!",
         "job": job_data
     }), 201
-
-@job_bp.route('/all_jobs', methods=['GET'])
-def get_all_jobs():
-    jobs = Job.query.all()
-
-    job_list = [job.to_dict() for job in jobs]
-
-    return jsonify({
-        "jobs": job_list
-    }), 200
 
 @job_bp.route('/applicable_jobs', methods=['GET'])
 def get_applicable_jobs():
@@ -100,4 +95,3 @@ def get_job_by_id(job_id):
 
     return jsonify({"job": job.to_dict()}), 200
 
-# Error handling

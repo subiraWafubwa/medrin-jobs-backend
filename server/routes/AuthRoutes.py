@@ -55,6 +55,8 @@ def register():
     totp = pyotp.TOTP(pyotp.random_base32(), digits=6)
     otp = totp.now()
 
+    print(otp)
+
     # Save user data temporarily
     unverified_users[email] = {
         "email": email,
