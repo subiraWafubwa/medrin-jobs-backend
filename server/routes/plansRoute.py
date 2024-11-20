@@ -38,9 +38,8 @@ class Plan(Resource):
         db.session.add(new_plan)
         db.session.commit()
         
-        return make_response({
-            new_plan.to_dict(),201
-        })
+        return make_response(
+            new_plan.to_dict(),201)
 api.add_resource(Plan,'/plans')
 
 class Plan_by_id(Resource):

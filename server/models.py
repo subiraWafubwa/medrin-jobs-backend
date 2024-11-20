@@ -122,7 +122,7 @@ class Organisation(db.Model, SerializerMixin):
     vision = Column(String)
     
     
-    subscriptions=relationship('Organisation',back_populates='organization')
+    subscriptions=relationship('Subscription',back_populates='organization')
     plans=association_proxy('subscriptions','Plans',creator=lambda plan_obj:Subscription(plan=plan_obj))
     user = relationship("User", back_populates="organisation")
     recruiters = relationship("Recruiter", back_populates="organisation")
@@ -133,7 +133,7 @@ class Organisation(db.Model, SerializerMixin):
 class Plans(db.Model,SerializerMixin):
     __tablename__='plans'
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name=Column(db.String,nullable=False) # (free ,silver ,gold ,or any other name based on the preference of the admin)
+    name=Column(db.String,nullable=False,unique=True) # (free ,silver ,gold ,or any other name based on the preference of the admin)
     cost=Column(db.Float,nullable=False,default=0.0)
     description=Column(db.String,nullable=False)
     job_limit=Column(db.Integer,nullable=True) #Null for unlimited days 
@@ -148,7 +148,7 @@ class Plans(db.Model,SerializerMixin):
 class Subscription(db.Model,SerializerMixin):
     __tablename__='company_subscription'
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id=Column(UUID(as_uuid=True),ForeignKey('users.id'),nullable=False)
+    organization_id=Column(UUID(as_uuid=True),ForeignKey('organisations.id'),nullable=False)
     plan_id=Column(UUID(as_uuid=True),ForeignKey('plans.id'),nullable=False)
     
     start_date=db.Column(db.DateTime,default=lambda:datetime.now(timezone(timedelta(hours=3))))
