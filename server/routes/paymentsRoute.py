@@ -29,7 +29,7 @@ class Payments_by_id(Resource):
             return make_response(
                 {
                     "error":"Sorry no payment found"
-                },400
+                },404
             )
         
         for key,value in data.items():

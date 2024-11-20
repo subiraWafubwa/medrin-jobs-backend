@@ -5,6 +5,7 @@ from flask import Blueprint,request,make_response
 from flask_restful import Api,Resource
 from dotenv import load_dotenv
 from models import db,User,Plans,Subscription,Payment,Organisation
+from uuid import UUID
 import os
 
 
@@ -45,14 +46,14 @@ def create_password(shortcode,passkey,timestamp):
 def format_phone_number(number):
     number_str=str(number)
     if number_str.startswith('07'):
-        return int('254' + number_str[1:])
+        return '254' + number_str[1:]
     
     elif number_str.startswith('254'):
-        return int(number_str)
+        return number_str
     else:
         return None
 
-class Payment(Resource):
+class Payments(Resource):
     def post(self):
         data=request.get_json()
         number=data['number']
@@ -62,12 +63,22 @@ class Payment(Resource):
         plan_id = data.get('plan_id')  
         user_id = data.get('user_id')
         
+        
+        
+        try:
+            user_id_u = UUID(user_id)
+            plan_id_u = UUID(plan_id)
+        except (ValueError, TypeError):
+            return make_response({"error": "Invalid user_id or plan_id format"}, 400)
+            
+        
+        
         #query the organization based from the user_id
-        organization=Organisation.query.filter_by(user_id=user_id)
+        organization=Organisation.query.filter_by(user_id=user_id_u).first()
         
         #here I validate the plan and user 
-        user = User.query.filter_by(id=user_id).first()
-        plan = Plans.query.filter_by(id=plan_id).first()
+        user = User.query.filter_by(id=user_id_u).first()
+        plan = Plans.query.filter_by(id=plan_id_u).first()
         
         if not user:
             return make_response({
@@ -104,7 +115,7 @@ class Payment(Resource):
             "PartyA": 254790453418,
             "PartyB": 174379,
             "PhoneNumber": formatted_phone_number,
-            "CallBackURL": "https://major-aardvark-secondly.ngrok-free.app/payment_result",
+            "CallBackURL": "https://major-aardvark-secondly.ngrok-free.app/mpesa/payment_result",
             "AccountReference": "Medrin",
             "TransactionDesc": f'Payment for {plan.name}'
          } 
@@ -116,9 +127,9 @@ class Payment(Resource):
         
         new_payment=Payment(
             amount=amount,
-            phone_number=number,
+            phone_number=formatted_phone_number,
             transaction_reference=response_data.get('CheckoutRequestID'),
-            plan_id=plan_id,
+            plan_id=plan_id_u,
             organisation_id=organization.id
         )
         
@@ -159,19 +170,19 @@ class Payment_result(Resource):
             
             return make_response({"message": "Payment failed"}, 400)
         
-class Payment_status(Resource):
-    def get(self, checkout_request_id):
-        payment = Payment.query.filter_by(transaction_reference=checkout_request_id).first()
-        if payment:
-            if payment.payment_status == "success":
-                return {"message": "Payment successful"}, 200
-            elif payment.payment_status == "failed":
-                return {"message": "Payment failed"}, 400
-            else:
-                return {"message": "Payment pending"}, 202
-        return {"error": "Payment not found"}, 404
+# class Payment_status(Resource):
+#     def get(self, checkout_request_id):
+#         payment = Payment.query.filter_by(transaction_reference=checkout_request_id).first()
+#         if payment:
+#             if payment.payment_status == "success":
+#                 return {"message": "Payment successful",}, 200
+#             elif payment.payment_status == "failed":
+#                 return {"message": "Payment failed"}, 400
+#             else:
+#                 return {"message": "Payment pending"}, 202
+#         return {"error": "Payment not found"}, 404
         
         
-api.add_resource(Payment,'/make_payment')   
+api.add_resource(Payments,'/make_payment')   
 api.add_resource(Payment_result,'/payment_result')
-api.add_resource(Payment_status, '/payment_status/<string:checkout_request_id>')        
+# api.add_resource(Payment_status, '/payment_status/<string:checkout_request_id>')        

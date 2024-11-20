@@ -12,7 +12,7 @@ class Subscriptions(Resource):
         if not subscriptions:
             return make_response({
                 "error":"No subscription is found"
-            },400)
+            },404)
         
         return make_response(subscriptions,200)
 

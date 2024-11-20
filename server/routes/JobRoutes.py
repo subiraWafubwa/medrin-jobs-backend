@@ -85,7 +85,7 @@ def get_applicable_jobs():
         "applicable_jobs": job_list
     }), 200
 
-@job_bp.route('/job/<int:job_id>', methods=['GET'])
+@job_bp.route('/job/<uuid:job_id>', methods=['GET'])
 def get_job_by_id(job_id):
 
     job = Job.query.get(job_id)
@@ -106,7 +106,7 @@ def get_jobs():
 
     return jsonify(jobs), 200
 
-@job_bp.route('/job/<int:job_id>', methods=['DELETE'])
+@job_bp.route('/job/<uuid:job_id>', methods=['DELETE'])
 def delete_job_by_id(job_id):
 
     job = Job.query.get(job_id)
