@@ -1,6 +1,8 @@
 from flask import Blueprint,request,make_response
 from flask_restful import Api,Resource
 from models import db,Plans
+import uuid
+from uuid import UUID
 
 plans_bp=Blueprint('plans_bp',__name__,url_prefix='/plans_route')
 api=Api(plans_bp)
@@ -12,7 +14,7 @@ class Plan(Resource):
         if not plans:
             return make_response({
                 "error":"No plans found"
-            },400)
+            },404)
         
         return make_response(plans,200)
     
@@ -56,9 +58,18 @@ class Plan_by_id(Resource):
         return make_response(plan.to_dict(),200)
     
     def put(self,id):
+        if isinstance(id,str):
+            plan_id=UUID(id)
+        else:
+            plan_id = id
+            
         data=request.get_json()
+        print(data)
         
-        plan=Plans.query.filter_by(id=id).first()
+        if 'id' in data:
+            del data['id']
+    
+        plan=Plans.query.filter_by(id=plan_id).first()
         if not plan:
             return make_response(
                 {
@@ -79,7 +90,7 @@ class Plan_by_id(Resource):
             return make_response(
                 {
                     "error":"The plan of the specified id is not found"
-                },400
+                },404
             )
         
         db.session.delete(plan)
